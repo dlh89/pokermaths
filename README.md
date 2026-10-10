@@ -18,16 +18,16 @@ The mental-maths app can keep running on port 8765. This app uses port 8766, its
 
 ## Practice
 
-Thirteen skills:
+Twelve skills:
 
 - Chips to BB; BB to chips; effective stack in BB; stack-to-pot ratio.
 - Bet as a percentage of the pot; percentage-pot bet sizing; pot after a bet and call.
+- Track the pot across streets, with action shown one street at a time.
 - Calling equity threshold; your bet facing an all-in raise; an all-in raise when you are shorter; break-even pure-bluff success rate.
-- Approximate draw chances with one card to come and with both remaining cards guaranteed.
 
 Choose cash, tournaments or both; any category, individual skill or custom mix. Cash examples use pounds and realistic blind amounts. Tournament examples use chips. All-in raise examples also alternate with BB wording. Changing format keeps your skill progress; cash and tournament versions share the same underlying maths skill.
 
-Questions use a poker table with players, remaining stacks and separate street bets. The centre shows the original pot before the displayed bets, matching the replay convention; add bets/calls yourself. No call amount or equity answer appears before reveal. Other skills use the same layout with only the relevant inputs, while draw estimates use a compact outs panel. Expand “Full text description” for the complete wording or “Practice settings” to change the selection. Graphics are rendered from each question's inputs rather than generated images.
+Questions use a poker table with players, remaining stacks and separate street bets. The centre shows the original pot before the displayed bets, matching the replay convention; add bets/calls yourself. No call amount or equity answer appears before reveal. Other skills use the same layout with only the relevant inputs, with only the relevant scenario inputs. Expand “Full text description” for the complete wording or “Practice settings” to change the selection. Graphics are rendered from each question's inputs rather than generated images.
 
 On phones, Show/Check answer and the rating buttons stay pinned at the bottom, with room reserved beneath the content and support for the phone's safe area. Revealing an answer brings its explanation into view; after the rating is saved, the next question automatically returns to the top of the screen. Longer explanations can still be scrolled while the rating controls remain reachable.
 
@@ -39,6 +39,8 @@ Answers also show a Mental shortcut tailored to the current numbers: cancelling 
 
 ## Meaning of the answers
 
+“Track the pot across streets” is in Bet sizing & pots. Remember the starting pot, then use the bottom button to step through the flop, turn and (at higher levels) river. The running pot stays hidden; answer only after all action is complete. Early questions are heads-up with round amounts; later questions include a third player, checks, folds, raises and returned uncalled bets. There are no side pots or rake. The revealed answer gives a street-by-street ledger. Replay action restarts the sequence and marks the attempt as assisted: it is saved, returns sooner, and does not count towards independent accuracy, timing or promotion. Your place in the sequence and replay status survive refreshing the page. The new skill is added automatically on startup without changing existing progress.
+
 Pot means the pot **before the described bet**. Villain's shove is their **total contribution on this street**, including the amount matching your bet, not a raise by that amount. Stacks are explicitly described as remaining before or after acting.
 
 For a heads-up all-in raise: let `P` be the pot before your bet, `B` your bet, `S` villain's total shove and `H` your total available street contribution (your bet plus remaining stack). The matched total is `M = min(S, H)`. Your extra call is `M − B`, the final matched pot is `P + 2M`, and the chip-equity threshold is `(M − B) / (P + 2M)`. Villain's unmatched excess is returned.
@@ -47,7 +49,7 @@ Example: pot 20 BB, you bet 10 BB, villain shoves to 75 BB and you cover: call 6
 
 Percentages are rounded to whole percentage points; typed answers within one percentage point of the displayed answer are accepted. BB and SPR use tenths (within 0.1 accepted). Chip amounts use whole chips; cash amounts use pennies. Enter numbers without units. The answer panel shows units and the calculation.
 
-Calling thresholds ignore rake and tournament payout effects (ICM). They are chip maths, not a recommendation to call with a particular hand. Draw questions explicitly ask for the rule of two/four approximation, show the exact hit chance for comparison, and assume clean outs. Two-card estimates only apply when both cards are guaranteed; hitting a draw is not automatically the same as winning equity. A pure bluff assumes zero equity when called and no later betting.
+Calling thresholds ignore rake and tournament payout effects (ICM). They are chip maths, not a recommendation to call with a particular hand. A pure bluff assumes zero equity when called and no later betting.
 
 References: [PokerStars pot odds and draw shortcuts](https://www.pokerstars.com/poker/learn/lesson/pot-odds/), [Upswing break-even bluff maths](https://upswingpoker.com/fold-equity/).
 

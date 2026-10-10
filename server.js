@@ -64,7 +64,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(root, 'd
         return reply(200, { ok: true }, { 'Set-Cookie': setCookie('', 0) });
       }
       if (route === '/api/state' && req.method === 'GET') {
-        const bands = db.prepare('SELECT * FROM bands ORDER BY skill,level').all();
+        const bands = db.prepare('SELECT * FROM bands ORDER BY skill,level').all().filter(b => Object.hasOwn(SKILLS, b.skill));
         return reply(200, { bands, now: time, due: bands.filter(b => b.due <= time).length,
           total: db.prepare('SELECT count(*) AS n FROM reviews').get().n,
           skills: Object.entries(SKILLS).map(([id, s]) => ({ id, name: s.name, category: categoryOf(id) })), levels: LEVELS,

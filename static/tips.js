@@ -37,6 +37,7 @@ globalThis.PokerTips = {
       return `Use a nearby 5% anchor: ${anchor}% of ${amount(d)} is ${amount(anchorAmount)}. Each 1 percentage point is ${amount(d / 100)}.${Math.abs(difference) > 0.000001 ? ` The numerator is ${amount(Math.abs(difference))} ${difference > 0 ? 'higher' : 'lower'}, so ${difference > 0 ? 'add' : 'subtract'} about ${fmt(Math.abs(difference) / (d / 100))} percentage points.` : ' The numerator matches exactly.'} Round only at the end.`;
     }
     switch (q.skill) {
+      case 'trackPot': return 'Carry one total forward at the end of each street. Heads-up bet and call: add twice the bet. With two callers: add three times the bet. For a raise, count each player’s total on that street; do not count an earlier bet twice. Checks and folds add no new chips; previous contributions stay in the pot. Return any uncalled part before adding the street total.';
       case 'chipsToBB': return divide(s.stack, s.blind);
       case 'effectiveStack': return `Use only the smaller stack (${amount(Math.min(s.hero, s.villain))}). ${divide(Math.min(s.hero, s.villain), s.blind)}`;
       case 'spr': return `Count whole pots in the effective stack, then the fraction left over. ${divide(s.effective, s.pot)}`;

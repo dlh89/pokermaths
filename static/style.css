@@ -12,6 +12,17 @@ button,input,select{background:#162b42;color:var(--ink)}.brand-icon{background:#
 @media(max-width:480px){.poker-table:not(.draw-facts){height:390px}}
 
 .mental-tip{margin-top:12px;border-left:3px solid #3182f6}
+.multiway .villain-seat,.multiway .villain-bet{left:75%}
+.third-seat,.third-bet{left:25%}
+.third-seat{top:0}
+.third-bet{top:91px}
+.multiway .villain-seat,.third-seat{min-width:0;width:46%;padding:8px;gap:5px}
+.multiway .seat strong{font-size:12px}
+.multiway .seat span:not(.avatar):not(.allin){font-size:12px}
+.multiway .avatar{width:26px;height:26px;font-size:18px}
+.multiway .table-bet strong{white-space:normal;text-align:center;max-width:145px;font-size:12px}
+#replay-action{display:block;margin:4px auto 0;font-size:12px;min-height:34px}
+#table-action{white-space:pre-line}
 #steps,#mental-tip{white-space:pre-line;line-height:1.8}
 
 /* Always-reachable controls, with space to keep the explanation unobscured. */

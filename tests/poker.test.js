@@ -33,7 +33,7 @@ test('all skills and difficulty steps yield correct answers in both game formats
     allInOdds: s => (s.shove - s.bet) / (s.pot + 2 * s.shove) * 100,
     shortAllInOdds: s => (s.heroTotal - s.bet) / (s.pot + 2 * s.heroTotal) * 100,
     bluff: s => s.bet / (s.pot + s.bet) * 100,
-    drawOne: s => 2 * s.outs, drawTwo: s => 4 * s.outs,
+    trackPot: s => s.startingPot + s.streets.reduce((sum, street) => sum + Object.values(street.contributions).reduce((a, b) => a + b, 0), 0),
   };
   for (const skill of Object.keys(SKILLS)) for (let d = 0; d < 6; d++) for (const game of ['cash', 'tournament']) {
     for (let n = 0; n < 80; n++) {
@@ -51,14 +51,44 @@ test('all skills and difficulty steps yield correct answers in both game formats
   }
 });
 
-test('calling and bluffing use distinct denominators and draws clearly state the horizon', () => {
+test('bet sizing retains preferred sizes at higher levels and excludes unwanted sizes', () => {
+  for (let d = 0; d < 6; d++) {
+    const expected = d === 0 ? [25, 50, 100] : d === 1 ? [20, 33, 67, 75, 125, 150] : [20, 25, 33, 40, 50, 67, 75, 100, 110, 125, 150, 200];
+    const seen = new Set();
+    for (const game of ['cash', 'tournament']) for (let i = 0; i < 1000; i++) {
+      const q = makeQuestion('betSize', Math.floor(d / 2), () => i / 1000, d, game);
+      assert.ok(expected.includes(q.scenario.percent));
+      seen.add(q.scenario.percent);
+    }
+    assert.deepEqual([...seen].sort((a, b) => a - b), [...expected].sort((a, b) => a - b));
+  }
+});
+
+test('tracking ledgers count raises once, return uncalled bets, and assisted answers do not promote', t => {
+  for (const game of ['cash', 'tournament']) {
+    const q = makeQuestion('trackPot', 2, () => 0, 5, game);
+    const [flop, turn, river] = q.scenario.streets;
+    assert.match(flop.action, /raises to/);
+    assert.equal(new Set(Object.values(flop.contributions)).size, 1);
+    assert.match(river.action, /uncalled.*returned/);
+    assert.equal(Object.values(river.contributions).reduce((a, b) => a + b, 0), 0);
+    assert.ok(river.returned > 0);
+    assert.ok(Number(q.answer) > q.scenario.startingPot);
+  }
+  const dir = mkdtempSync(path.join(tmpdir(), 'poker-assisted-')), db = openDatabase(dir);
+  t.after(() => { db.close(); rmSync(dir, { recursive: true, force: true }); });
+  const q = nextQuestion(db, parsePractice({ skill: 'trackPot', mode: 'free' }), 100 * DAY);
+  recordReview(db, q.id, 'comfortable', 100 * DAY, { assisted: true, elapsedMs: 5000, answerMode: 'mental' });
+  const review = db.prepare('SELECT * FROM reviews WHERE question_id=?').get(q.id);
+  assert.equal(review.assisted, 1); assert.equal(review.first_attempt, 0);
+  assert.equal(review.rating, 'slow'); assert.equal(review.elapsed_ms, null);
+  assert.equal(db.prepare("SELECT comfortable_days FROM bands WHERE skill='trackPot'").get().comfortable_days, 0);
+});
+
+test('calling and bluffing use distinct denominators', () => {
   const call = makeQuestion('potOdds', 0, () => 0), bluff = makeQuestion('bluff', 0, () => 0);
   assert.equal(call.answer, '17'); assert.equal(bluff.answer, '20'); // quarter-pot bet
   assert.match(call.prompt, /BEFORE/); assert.match(call.prompt, /all-in/);
-  const draw = makeQuestion('drawTwo', 0, () => 0);
-  assert.match(draw.prompt, /both remaining cards guaranteed/);
-  assert.match(draw.method, /rough shortcut/);
-  assert.equal(draw.answer, '16');
   const bbRaise = makeQuestion('allInOdds', 0, () => 0, 1, 'tournament');
   assert.match(bbRaise.prompt, /BB/); assert.match(bbRaise.steps, /BB/);
   assert.ok(!bbRaise.steps.includes('chips'));
@@ -69,6 +99,9 @@ test('calling and bluffing use distinct denominators and draws clearly state the
 test('authenticated API saves once, retries misses, filters formats and backs up a separate database', async t => {
   const dir = mkdtempSync(path.join(tmpdir(), 'poker-api-'));
   const app = createApp({ dataDir: dir });
+  // Simulate an existing installation: retired skill rows must remain stored
+  // without appearing in due counts or being selected for new practice.
+  for (const skill of ['drawOne', 'drawTwo']) app.db.prepare('INSERT INTO bands(skill,level) VALUES (?,0)').run(skill);
   await setPassword(app.db, 'poker-test-password', 'david');
   t.after(() => { app.db.close(); rmSync(dir, { recursive: true, force: true }); });
   let cookie = '';
@@ -99,7 +132,13 @@ test('authenticated API saves once, retries misses, filters formats and backs up
   assert.equal((await (await call('state')).json()).total, 1);
   await call('review', { id: saved.next.id, rating: 'comfortable', elapsedMs: 3000, answerMode: 'mental' });
   const state = await (await call('state')).json();
-  assert.equal(state.skills.length, 13); assert.equal(state.difficulties.length, 6);
+  assert.equal(state.skills.length, 12); assert.equal(state.difficulties.length, 6);
+  assert.ok(state.bands.every(b => !b.skill.startsWith('draw')));
+  assert.equal(state.due, state.bands.filter(b => b.due <= state.now).length);
+  assert.equal(app.db.prepare("SELECT count(*) AS n FROM bands WHERE skill IN ('drawOne','drawTwo')").get().n, 2);
+  const mixed = await (await call('question', { skill: 'all', mode: 'free' })).json();
+  assert.ok(!mixed.skill.startsWith('draw'));
+  assert.equal((await call('question', { skill: 'drawOne' })).status, 400);
   assert.equal(state.measurements.reduce((n, m) => n + m.recent.attempts, 0), 1);
   const destination = path.join(dir, 'backup.sqlite3');
   execFileSync(process.execPath, ['scripts/admin.js', 'backup', destination], { cwd: new URL('..', import.meta.url), env: { ...process.env, DATA_DIR: dir }, stdio: 'pipe' });

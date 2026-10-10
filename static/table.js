@@ -1,6 +1,6 @@
 // The view uses only question inputs: no call amount, final pot or equity answer.
 globalThis.PokerTable = {
-  build(q) {
+  build(q, trackingIndex = 0) {
     const s = q.scenario;
     if (!s) return null; // Already-open questions from before table support.
     const fmt = n => Number(n).toLocaleString('en-GB', { maximumFractionDigits: 4 });
@@ -13,6 +13,21 @@ globalThis.PokerTable = {
       potLabel: 'Pot', potNote: 'Before these bets', action: '', question: '', note: '',
       blind: s.blind && !inBB ? `Big blind: ${amount(s.blind)}` : '', facts: false };
     switch (q.skill) {
+      case 'trackPot': {
+        const index = Math.max(0, Math.min(trackingIndex, s.streets.length + 1));
+        const street = s.streets[Math.min(index, s.streets.length) - 1];
+        const finished = index > s.streets.length;
+        view.potLabel = index === 0 ? 'Starting pot' : 'Running pot';
+        view.pot = index === 0 ? amount(s.startingPot) : '?';
+        view.potNote = index === 0 ? 'Before flop action' : 'Keep the total in your head';
+        view.hero = player('YOU', '', street && !finished && street.contributions.YOU ? `${amount(street.contributions.YOU)} total` : '');
+        view.villain = player('VILLAIN', '', street && !finished && street.contributions.VILLAIN ? `${amount(street.contributions.VILLAIN)} total` : '');
+        view.third = s.players.length === 3 ? player('PLAYER 3', street?.thirdFolded ? 'Folded' : '', street && !finished && street.contributions['PLAYER 3'] ? `${amount(street.contributions['PLAYER 3'])} total` : '') : null;
+        view.action = index === 0 ? `${s.players.length} players. Remember the starting pot, then show the flop action.` : finished ? 'All action complete.' : `${street.name}: ${street.action}`;
+        view.question = finished ? `What is the pot ${s.target === 'end of the river' ? 'at the end of the river' : `going into the ${s.target}`}?` : 'Keep a running total. Continue when ready.';
+        view.note = 'Ignore rake · Bets shown are total contributions on this street · No side pots';
+        break;
+      }
       case 'chipsToBB':
         view.hero.stack = amount(s.stack); view.potNote = ''; view.action = 'Your stack';
         view.question = 'How many big blinds do you have?'; break;

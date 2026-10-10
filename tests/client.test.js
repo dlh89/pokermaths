@@ -34,6 +34,44 @@ function client(fetch, saved, viewport) {
 }
 const response = data => ({ ok: true, json: async () => data });
 
+test('tracking advances street by street, hides the pot, persists replay and saves an assisted attempt', async () => {
+  let posted;
+  const q = { ...next, skill: 'trackPot', unit: 'chips', answer: '5100', scenario: {
+    startingPot: 900, blind: 100, players: ['YOU', 'VILLAIN'], target: 'river', streets: [
+      { name: 'Flop', action: 'You bet 600 chips. Villain calls 600 chips.', contributions: { YOU: 600, VILLAIN: 600 } },
+      { name: 'Turn', action: 'You bet 1,500 chips. Villain calls 1,500 chips.', contributions: { YOU: 1500, VILLAIN: 1500 } },
+    ],
+  } };
+  const saved = JSON.stringify({ pending: [], count: 0, mode: 'daily', skill: 'all', question: q, revealed: false });
+  const app = client(async (url, options) => { posted = JSON.parse(options.body); return response({ ok: true, next: { done: true } }); }, saved);
+  // Render via the existing next-question path, without generating a new question.
+  await app.controls.nextQuestion();
+  assert.equal(app.elements.get('pot-amount').textContent, '900 chips');
+  const submit = () => app.elements.get('answer-form').submit({ preventDefault() {} });
+  submit();
+  assert.equal(app.elements.get('pot-amount').textContent, '?');
+  assert.match(app.elements.get('table-action').textContent, /Flop/);
+  assert.doesNotMatch(app.elements.get('table-action').textContent, /1,500/);
+  assert.equal(app.elements.get('text-scenario').hidden, true);
+  assert.equal(app.elements.get('answer-panel').hidden, true);
+  submit();
+  assert.match(app.elements.get('table-action').textContent, /Turn/);
+  app.elements.get('replay-action').onclick();
+  assert.equal(app.stored().tracking.assisted, true);
+  assert.equal(app.elements.get('pot-amount').textContent, '900 chips');
+  const reloaded = client(async (url, options) => { posted = JSON.parse(options.body); return response({ ok: true, next: { done: true } }); }, JSON.stringify(app.stored()));
+  await reloaded.controls.nextQuestion();
+  const advance = () => reloaded.elements.get('answer-form').submit({ preventDefault() {} });
+  advance(); advance(); advance();
+  assert.equal(reloaded.elements.get('reveal').textContent, 'Show answer');
+  assert.equal(reloaded.elements.get('answer-panel').hidden, true);
+  advance();
+  assert.equal(reloaded.elements.get('answer').textContent, '5,100 chips');
+  assert.equal(reloaded.ratings[2].disabled, true);
+  await reloaded.ratings[1].onclick();
+  assert.equal(posted.assisted, true);
+});
+
 test('answer calculations render on separate lines without splitting decimals', async () => {
   const lines = [
     'Matched total per player = £500.',

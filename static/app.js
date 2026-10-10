@@ -67,6 +67,7 @@ async function run(action) {
     busy = false;
     document.querySelectorAll('button,select,input').forEach(e => { e.disabled = false; });
     if (local.wrong) document.querySelectorAll('[data-rating]:not([data-rating="missed"])').forEach(e => { e.disabled = true; });
+    if (local.tracking?.id === local.question?.id && local.tracking?.assisted) document.querySelectorAll('[data-rating="comfortable"]').forEach(e => { e.disabled = true; });
     if (local.pending.length) document.querySelectorAll('[data-rating],#mode,#skill,#game,#typed,#reveal,#edit-skills,#custom-picker button,#custom-picker input').forEach(e => { e.disabled = true; });
   }
 }
@@ -107,6 +108,9 @@ async function refresh() {
   $('skill').querySelector('[value="custom"]').textContent = local.skill === 'custom' ? `Custom mix (${local.customSkills.length})` : 'Choose a custom mix…';
   $('edit-skills').hidden = local.skill !== 'custom';
   $('game').value = local.game; $('skill').value = local.skill; $('mode').value = local.mode; $('typed').checked = Boolean(local.typed);
+  if (local.question && !local.pending.length && !state.skills.some(s => s.id === local.question.skill)) {
+    local.question = null; local.revealed = false; local.wrong = false; local.entry = ''; local.measurement = null; persist();
+  }
   renderProgress();
 }
 function selectedSkills() {
@@ -116,7 +120,7 @@ function selectedSkills() {
 function openSkillPicker() {
   const selected = new Set(selectedSkills());
   $('skill-checkboxes').replaceChildren();
-  for (const [category, name] of [['stacks', 'Stacks & big blinds'], ['sizing', 'Bet sizing & pots'], ['odds', 'Pot odds & bluffs'], ['draws', 'Draw estimates']]) {
+  for (const [category, name] of [['stacks', 'Stacks & big blinds'], ['sizing', 'Bet sizing & pots'], ['odds', 'Pot odds & bluffs']]) {
     const group = document.createElement('fieldset'), legend = document.createElement('legend');
     legend.textContent = name; group.append(legend);
     for (const s of state.skills.filter(s => s.category === category)) {
@@ -141,7 +145,10 @@ function renderQuestion() {
     startedAt = document.hidden || (document.hasFocus && !document.hasFocus()) ? null : Date.now();
     local.measurement = null;
   }
-  const table = globalThis.PokerTable?.build(q);
+  const tracking = q.skill === 'trackPot';
+  if (tracking && local.tracking?.id !== q.id) { local.tracking = { id: q.id, index: 0, assisted: false }; persist(); }
+  const ready = !tracking || local.tracking.index > q.scenario.streets.length;
+  const table = globalThis.PokerTable?.build(q, tracking ? local.tracking.index : 0);
   renderTable(table, q);
   $('question').textContent = table?.question || q.prompt;
   $('context-label').textContent = q.contextLabel || 'Poker practice';
@@ -149,9 +156,11 @@ function renderQuestion() {
   $('level-label').textContent = q.difficultyLabel || state.levels[q.level];
   $('question-caption').textContent = q.retry ? 'Try another from this skill' : q.challenge ? 'Try a slightly harder example' : local.typed ? 'Work it out, then enter your answer' : 'Work it out in your head';
   $('answer-form').hidden = Boolean(local.revealed);
-  $('answer-input').hidden = !local.typed;
+  $('answer-input').hidden = !local.typed || !ready;
   $('answer-input').value = local.entry || '';
-  $('reveal').textContent = local.typed ? 'Check answer' : 'Show answer';
+  $('reveal').textContent = !ready ? (local.tracking.index === 0 ? 'Show flop action' : local.tracking.index === q.scenario.streets.length ? 'Finish hand' : 'Next street') : local.typed ? 'Check answer' : 'Show answer';
+  $('replay-action').hidden = !tracking || local.tracking.index === 0;
+  $('text-scenario').hidden = tracking && !local.revealed || !table;
   $('answer-panel').hidden = !local.revealed;
   // Format from the numeric answer, including questions restored from storage
   // whose older answerLabel may have no thousands separators.
@@ -162,7 +171,8 @@ function renderQuestion() {
   $('mental-tip').textContent = explanationLines(mentalTip);
   $('mental-tip-panel').hidden = !mentalTip;
   $('correctness').textContent = local.typed ? (local.wrong ? `Your answer: ${local.entry} · Not quite` : 'Correct') : 'ANSWER';
-  if (local.revealed) document.querySelectorAll('[data-rating]').forEach(e => { e.disabled = local.wrong && e.dataset.rating !== 'missed'; });
+  if (tracking && local.tracking.assisted) $('correctness').textContent += ' · Used replay (not independent recall)';
+  if (local.revealed) document.querySelectorAll('[data-rating]').forEach(e => { e.disabled = local.wrong && e.dataset.rating !== 'missed' || tracking && local.tracking.assisted && e.dataset.rating === 'comfortable'; });
   if (displayedQuestionId !== q.id && onPhone()) $('question-card').scrollIntoView({ block: 'start', behavior: 'instant' });
   displayedQuestionId = q.id;
 }
@@ -173,6 +183,7 @@ function renderTable(view, q) {
   $('scenario-description').textContent = q.prompt;
   $('table-blind').textContent = view.blind; $('table-blind').hidden = !view.blind;
   $('poker-table').classList.toggle('draw-facts', view.facts);
+  $('poker-table').classList.toggle('multiway', Boolean(view.third));
   const seat = (side, player) => {
     $(`${side}-seat`).hidden = !player;
     $(`${side}-bet`).hidden = !player?.bet;
@@ -181,11 +192,11 @@ function renderTable(view, q) {
     $(`${side}-stack`).textContent = player.stack;
     $(`${side}-bet-amount`).textContent = side === 'hero' && player.bet ? `${q.skill === 'potAfterCall' ? 'Your call' : 'Your bet'}: ${player.bet}` : player.bet;
   };
-  seat('hero', view.hero); seat('villain', view.villain);
+  seat('hero', view.hero); seat('villain', view.villain); seat('third', view.third);
   $('villain-allin').hidden = !view.villain?.allIn;
   $('table-pot').hidden = !view.pot;
   $('pot-label').textContent = view.potLabel; $('pot-amount').textContent = view.pot; $('pot-note').textContent = view.potNote;
-  $('table-action').textContent = view.action; $('table-action').hidden = !view.action;
+  $('table-action').textContent = explanationLines(view.action); $('table-action').hidden = !view.action;
   $('table-note').textContent = view.note; $('table-note').hidden = !view.note;
 }
 function finish(nextDue) {
@@ -247,6 +258,9 @@ $('login-form').addEventListener('submit', e => { e.preventDefault(); run(async 
 $('logout').onclick = () => run(async () => { await flush(); await api('logout', {}); showLogin(); });
 $('answer-form').addEventListener('submit', e => {
   e.preventDefault(); if (busy || !local.question || local.pending.length || local.revealed) return;
+  if (local.question.skill === 'trackPot' && local.tracking.index <= local.question.scenario.streets.length) {
+    local.tracking.index++; persist(); renderQuestion(); return;
+  }
   if (local.typed) {
     const raw = $('answer-input').value.trim().replace(',', '.');
     if (!/^\d+(?:\.\d+)?$/.test(raw)) { $('answer-input').setCustomValidity('Enter a number, such as 16 or 16.4.'); $('answer-input').reportValidity(); return; }
@@ -255,11 +269,16 @@ $('answer-form').addEventListener('submit', e => {
   }
   const elapsed = startedAt == null ? null : Date.now() - startedAt;
   local.measurement = { elapsedMs: elapsed != null && elapsed >= 0 && elapsed <= 600000 ? elapsed : null, answerMode: local.typed ? 'typed' : 'mental' };
+  if (local.question.skill === 'trackPot') local.measurement.assisted = local.tracking.assisted;
   startedAt = null;
   local.revealed = true; persist(); renderQuestion();
   $('answer-input').blur?.();
   $('answer-panel').scrollIntoView({ block: onPhone() ? 'start' : 'nearest', behavior: 'instant' });
 });
+$('replay-action').onclick = () => {
+  if (busy || local.revealed || local.pending.length || local.question?.skill !== 'trackPot') return;
+  local.tracking.index = 0; local.tracking.assisted = true; interruptTiming(); persist(); renderQuestion();
+};
 $('answer-input').oninput = () => $('answer-input').setCustomValidity('');
 document.querySelectorAll('[data-rating]').forEach(b => { b.onclick = () => run(async () => {
   if (!local.question || !local.revealed || local.pending.length) return;

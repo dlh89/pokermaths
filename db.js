@@ -32,13 +32,15 @@ export function openDatabase(directory) {
     add('reviews', 'difficulty', 'INTEGER');
     add('reviews', 'elapsed_ms', 'INTEGER');
     add('reviews', 'answer_mode', 'TEXT');
-    db.exec('PRAGMA user_version=3; COMMIT;');
+    add('reviews', 'assisted', 'INTEGER');
+    db.exec('PRAGMA user_version=4; COMMIT;');
   } catch (error) { db.exec('ROLLBACK'); throw error; }
   for (const skill of Object.keys(SKILLS)) db.prepare('INSERT OR IGNORE INTO bands(skill,level) VALUES (?,0)').run(skill);
   return db;
 }
 
 export function recordReview(db, id, rating, now, measurement = {}) {
+  if (measurement.assisted != null && typeof measurement.assisted !== 'boolean') throw Object.assign(new Error('Invalid assisted measurement.'), { status: 400 });
   const elapsed = measurement.elapsedMs;
   if ((elapsed != null && (!Number.isInteger(elapsed) || elapsed < 0 || elapsed > 600_000)) || (measurement.answerMode != null && !['mental', 'typed'].includes(measurement.answerMode))) {
     throw Object.assign(new Error('Invalid answer measurement.'), { status: 400 });
@@ -52,6 +54,8 @@ export function recordReview(db, id, rating, now, measurement = {}) {
     }
     const before = db.prepare('SELECT * FROM bands WHERE skill=? AND level=?').get(q.skill, q.level);
     const payload = JSON.parse(q.payload);
+    const assisted = payload.skill === 'trackPot' && measurement.assisted === true;
+    if (assisted && rating === 'comfortable') rating = 'slow';
     const last = db.prepare(`SELECT r.rating FROM reviews r JOIN questions q ON q.id=r.question_id WHERE q.skill=? AND q.level=? ORDER BY r.rowid DESC LIMIT 1`).get(q.skill, q.level);
     const retry = payload.retry === true || last?.rating === 'missed';
     const tracked = payload.version === 2;
@@ -62,10 +66,10 @@ export function recordReview(db, id, rating, now, measurement = {}) {
     if (tracked && q.level === highest && q.level * 2 + before.stage < 5) after.due = Math.min(after.due, now + 7 * 86_400_000);
     db.prepare('UPDATE bands SET step=?,due=?,last_day=?,comfortable_days=?,attempts=? WHERE skill=? AND level=?')
       .run(after.step, after.due, after.last_day, after.comfortable_days, after.attempts, q.skill, q.level);
-    db.prepare('INSERT INTO reviews(question_id,rating,at,first_attempt,difficulty,elapsed_ms,answer_mode) VALUES (?,?,?,?,?,?,?)')
-      .run(id, rating, now, tracked ? Number(!retry) : null, tracked ? payload.difficulty : null, tracked ? elapsed ?? null : null, tracked ? measurement.answerMode ?? null : null);
+    db.prepare('INSERT INTO reviews(question_id,rating,at,first_attempt,difficulty,elapsed_ms,answer_mode,assisted) VALUES (?,?,?,?,?,?,?,?)')
+      .run(id, rating, now, tracked ? Number(!retry && !assisted) : null, tracked ? payload.difficulty : null, tracked && !assisted ? elapsed ?? null : null, tracked ? measurement.answerMode ?? null : null, tracked ? Number(assisted) : null);
     let unlocked = false;
-    if (tracked && !retry) {
+    if (tracked && !retry && !assisted) {
       const recent = db.prepare(`SELECT r.rating,r.at FROM reviews r JOIN questions q ON q.id=r.question_id
         WHERE q.skill=? AND r.difficulty=? AND r.first_attempt=1 ORDER BY r.rowid DESC LIMIT 8`).all(q.skill, payload.difficulty);
       const comfortable = recent.filter(r => r.rating === 'comfortable');

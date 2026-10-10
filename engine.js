@@ -10,12 +10,11 @@ export const SKILLS = {
   betPercent: { name: 'Bet as a percentage of pot', category: 'sizing' },
   betSize: { name: 'Size a percentage-pot bet', category: 'sizing' },
   potAfterCall: { name: 'Pot after a bet and call', category: 'sizing' },
+  trackPot: { name: 'Track the pot across streets', category: 'sizing' },
   potOdds: { name: 'Equity needed to call', category: 'odds' },
   allInOdds: { name: 'Your bet faces an all-in raise', category: 'odds' },
   shortAllInOdds: { name: 'All-in raise when you are shorter', category: 'odds' },
   bluff: { name: 'Break-even bluff success rate', category: 'odds' },
-  drawOne: { name: 'Outs: next-card estimate', category: 'draws' },
-  drawTwo: { name: 'Outs: two-card estimate', category: 'draws' },
 };
 export const categoryOf = skill => SKILLS[skill]?.category;
 export const format = n => String(Math.round(n * 10000) / 10000);
@@ -25,7 +24,7 @@ export function selectSkills(skill = 'all', skills) {
     return [...new Set(skills)];
   }
   if (skill === 'all') return Object.keys(SKILLS);
-  if (['stacks', 'sizing', 'odds', 'draws'].includes(skill)) return Object.keys(SKILLS).filter(id => categoryOf(id) === skill);
+  if (['stacks', 'sizing', 'odds'].includes(skill)) return Object.keys(SKILLS).filter(id => categoryOf(id) === skill);
   if (Object.hasOwn(SKILLS, skill)) return [skill];
   throw new Error('Unknown practice selection.');
 }
@@ -79,13 +78,54 @@ export function makeQuestion(skill, level, random = Math.random, difficulty = le
     percentage(`Pot BEFORE the bet: ${money(pot)}. Bet: ${money(bet)}. What percentage of pot is the bet?`, bet / pot * 100, 'Bet ÷ pot before the bet × 100.', `${amount(bet)} ÷ ${amount(pot)} × 100 = ${format(bet / pot * 100)}%.`);
     scenario = { pot, bet };
   } else if (skill === 'betSize') {
-    const percent = difficulty === 0 ? pick([25, 50, 100]) : difficulty === 1 ? pick([20, 33, 67, 75, 125, 150]) : difficulty < 4 ? pick([30, 40, 60, 80, 125, 200]) : int(21, 175);
+    const percent = difficulty === 0 ? pick([25, 50, 100]) : difficulty === 1 ? pick([20, 33, 67, 75, 125, 150]) : pick([20, 25, 33, 40, 50, 67, 75, 100, 110, 125, 150, 200]);
     const size = pot * percent / 100;
     numeric(`Pot: ${money(pot)}. How much is a ${percent}%-pot bet? Round to ${context === 'cash' ? 'the nearest penny' : 'the nearest chip'}.`, context === 'cash' ? size : Math.round(size), context === 'cash' ? '£' : 'chips', 'Multiply the pot by the percentage ÷ 100.', `${amount(pot)} × ${percent} ÷ 100 = ${money(size)} before rounding.`);
     scenario = { pot, percent };
   } else if (skill === 'potAfterCall') {
     numeric(`Pot BEFORE the bet: ${money(pot)}. Villain bets ${money(bet)} and you call ${money(bet)}. No other action. What is the new pot?`, round(pot + 2 * bet), context === 'cash' ? '£' : 'chips', 'Add both the bet and the call.', `${amount(pot)} + ${amount(bet)} + ${amount(bet)} = ${money(round(pot + 2 * bet))}.`);
     scenario = { pot, bet };
+  } else if (skill === 'trackPot') {
+    const count = difficulty === 0 ? 1 : difficulty < 3 ? 2 : 3;
+    const players = difficulty >= 3 ? ['YOU', 'VILLAIN', 'PLAYER 3'] : ['YOU', 'VILLAIN'];
+    const streets = [];
+    let running = pot;
+    let thirdActive = players.length === 3;
+    const ledger = [`Starting pot on the flop = ${money(pot)}.`];
+    for (let i = 0; i < count; i++) {
+      const name = ['Flop', 'Turn', 'River'][i];
+      const b = round((difficulty < 2 ? pick([2, 4, 6, 10]) : difficulty < 4 ? int(3, 20) : int(31, 199) / 10) * blind);
+      const contributions = { YOU: 0, VILLAIN: 0 };
+      if (players.length === 3) contributions['PLAYER 3'] = 0;
+      let action, returned = 0;
+      if (difficulty === 5 && i === 2) {
+        action = `You bet ${money(b)}. Villain folds. Your uncalled ${money(b)} is returned.`;
+        returned = b;
+      } else if (difficulty >= 2 && i === 1 && pick([false, true])) {
+        action = 'You check. Villain checks.';
+      } else if (difficulty >= 4 && i === 0) {
+        const total = round(b * pick([2, 3]));
+        contributions.YOU = total; contributions.VILLAIN = total;
+        if (players.length === 3) contributions['PLAYER 3'] = total;
+        action = `You bet ${money(b)}. Villain raises to ${money(total)} total. ${players.length === 3 ? `Player 3 calls ${money(total)}. ` : ''}You call another ${money(round(total - b))}.`;
+      } else {
+        contributions.YOU = b; contributions.VILLAIN = b;
+        if (players.length === 3 && i === 0) contributions['PLAYER 3'] = b;
+        action = `You bet ${money(b)}. Villain calls ${money(b)}.${players.length === 3 && i === 0 ? ` Player 3 calls ${money(b)}.` : ''}`;
+      }
+      if (thirdActive && i > 0) {
+        if (action.includes('Villain checks.')) action = `Player 3 checks. ${action}`;
+        else { action = `Player 3 checks. ${action} Player 3 folds to your bet.`; thirdActive = false; }
+      }
+      if (returned) action = `${action.replace(` Your uncalled ${money(b)} is returned.`, '')} Your uncalled ${money(b)} is returned.`;
+      const addition = round(Object.values(contributions).reduce((sum, n) => sum + n, 0));
+      streets.push({ name, action, contributions, returned, thirdFolded: players.length === 3 && !thirdActive });
+      ledger.push(`${name}: ${Object.values(contributions).map(money).join(' + ')} = ${money(addition)} added. Pot = ${money(running)} + ${money(addition)} = ${money(round(running + addition))}.${returned ? ` Uncalled ${money(returned)} is returned, so it adds nothing.` : ''}`);
+      running = round(running + addition);
+    }
+    const target = count < 3 ? ['turn', 'river'][count - 1] : 'end of the river';
+    numeric(`Starting pot on the flop: ${money(pot)}. ${streets.map(street => `${street.name}: ${street.action}`).join(' ')} What is the pot at the ${target}? Ignore rake.`, running, context === 'cash' ? '£' : 'chips', 'Carry the pot forward and add each player’s final contribution on each street.', ledger.join('\n'));
+    scenario = { startingPot: pot, players, streets, target };
   } else if (skill === 'potOdds') {
     percentage(`Heads-up: pot BEFORE villain bets is ${money(pot)}. Villain bets ${money(bet)} all-in; you cover. What equity is needed to break even on a call? Ignore rake and tournament payouts.`, bet / (pot + 2 * bet) * 100, 'Call ÷ final pot after your call × 100.', `Call ${money(bet)}. Final pot = ${amount(pot)} + 2 × ${amount(bet)} = ${money(round(pot + 2 * bet))}. Required equity = ${format(bet / (pot + 2 * bet) * 100)}%.`);
     scenario = { pot, bet };
@@ -102,11 +142,6 @@ export function makeQuestion(skill, level, random = Math.random, difficulty = le
   } else if (skill === 'bluff') {
     percentage(`Pot BEFORE your bet: ${money(pot)}. You bluff ${money(bet)}. You always lose when called, with no further betting. How often must everyone fold for your bluff to break even? Ignore rake and tournament payouts.`, bet / (pot + bet) * 100, 'Risk ÷ (risk + reward) × 100.', `Risk = ${money(bet)}; reward = the existing ${money(pot)} pot. ${amount(bet)} ÷ (${amount(bet)} + ${amount(pot)}) × 100 = ${format(bet / (pot + bet) * 100)}%. This differs from calling odds.`);
     scenario = { pot, bet };
-  } else {
-    const outs = difficulty < 2 ? pick([4, 8, 9]) : difficulty < 4 ? int(2, 12) : int(1, 15);
-    const two = skill === 'drawTwo', multiplier = two ? 4 : 2;
-    percentage(`${outs} clean outs, ${two ? 'on the flop with both remaining cards guaranteed (all-in)' : 'with one card to come'}. Using the rule of ${multiplier}, approximately what percentage chance of hitting?`, outs * multiplier, `Multiply clean outs by ${multiplier}. This is a rough shortcut, not exact equity.`, `${outs} × ${multiplier} ≈ ${outs * multiplier}%. ${two ? `Exact chance of hitting at least one out: ${format((1 - (47-outs)/47 * (46-outs)/46)*100)}%.` : `For a turn-to-river draw, exact chance: ${format(outs / 46 * 100)}%.`} Hitting an out is assumed to help; actual winning equity depends on the hand. The shortcut becomes less accurate with many outs.`);
-    scenario = { outs, multiplier };
   }
   const answerNumber = unit === '%' ? Math.round(value) : ['BB', 'SPR'].includes(unit) ? Math.round(value * 10) / 10 : unit === 'chips' ? Math.round(value) : round(value);
   const answer = format(answerNumber), displayAnswer = amount(answerNumber);
