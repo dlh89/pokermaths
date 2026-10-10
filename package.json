@@ -1,0 +1,5 @@
+{
+  "name": "little-by-little-poker", "version": "0.1.0", "private": true,
+  "type": "module", "engines": {"node": ">=22.13.0"},
+  "scripts": {"start": "node --env-file-if-exists=.env server.js", "dev": "node --env-file-if-exists=.env --watch server.js", "password": "node --env-file-if-exists=.env scripts/admin.js password", "backup": "node --env-file-if-exists=.env scripts/admin.js backup", "test": "node --test"}
+}
