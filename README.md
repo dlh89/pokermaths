@@ -35,6 +35,8 @@ Daily rounds contain up to ten questions plus outstanding retries. Free practice
 
 Progress shows first-attempt accuracy and median correct-answer time, separated by difficulty and answer mode. Timing does not affect promotion. Detected interruptions and restored questions have no timing; self-marked results rely on your honest rating. The server commits each review once and the browser retains an unsent answer for reconnection. This is not fully offline practice.
 
+Answers also show a Mental shortcut tailored to the current numbers: cancelling zeros, splitting BB amounts, building percentages from halves/quarters or 10%/1%, and using percentage anchors for calling and bluffing odds. These tips appear only after reveal and also work for previously saved questions with scenario data.
+
 ## Meaning of the answers
 
 Pot means the pot **before the described bet**. Villain's shove is their **total contribution on this street**, including the amount matching your bet, not a raise by that amount. Stacks are explicitly described as remaining before or after acting.

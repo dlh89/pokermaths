@@ -1,4 +1,6 @@
 const $ = id => document.getElementById(id);
+// A decimal point has no following space, so it stays inside its number.
+const explanationLines = text => String(text || '').replace(/([.;])[ \t]+/g, '$1\n');
 const storageKey = 'little-by-little-poker-v1';
 let local, storageAvailable = true, busy = false, state, authenticated = false;
 try { local = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch { storageAvailable = false; }
@@ -155,7 +157,10 @@ function renderQuestion() {
   // whose older answerLabel may have no thousands separators.
   const displayAnswer = Number(q.answer).toLocaleString('en-GB', { maximumFractionDigits: 4 });
   $('answer').textContent = q.unit === '£' ? `£${displayAnswer}` : `${displayAnswer}${q.unit === '%' ? '%' : q.unit ? ` ${q.unit}` : ''}`;
-  $('method').textContent = q.method; $('steps').textContent = q.steps;
+  $('method').textContent = q.method; $('steps').textContent = explanationLines(q.steps);
+  const mentalTip = globalThis.PokerTips?.build(q) || '';
+  $('mental-tip').textContent = explanationLines(mentalTip);
+  $('mental-tip-panel').hidden = !mentalTip;
   $('correctness').textContent = local.typed ? (local.wrong ? `Your answer: ${local.entry} · Not quite` : 'Correct') : 'ANSWER';
   if (local.revealed) document.querySelectorAll('[data-rating]').forEach(e => { e.disabled = local.wrong && e.dataset.rating !== 'missed'; });
   if (displayedQuestionId !== q.id && onPhone()) $('question-card').scrollIntoView({ block: 'start', behavior: 'instant' });

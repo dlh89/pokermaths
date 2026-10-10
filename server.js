@@ -15,7 +15,7 @@ export function createApp({ dataDir = process.env.DATA_DIR || path.join(root, 'd
   const db = openDatabase(dataDir);
   const cookieName = production ? '__Host-poker' : 'poker_session';
   const setCookie = (token, age = 30 * DAY / 1000) => `${cookieName}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${age}${production ? '; Secure' : ''}`;
-  const assets = Object.fromEntries([['/', 'index.html', 'text/html'], ['/app.js', 'app.js', 'text/javascript'], ['/table.js', 'table.js', 'text/javascript'], ['/style.css', 'style.css', 'text/css'], ['/favicon.svg', 'favicon.svg', 'image/svg+xml']].map(([route, file, type]) => [route, { body: readFileSync(path.join(root, 'static', file)), type }]));
+  const assets = Object.fromEntries([['/', 'index.html', 'text/html'], ['/app.js', 'app.js', 'text/javascript'], ['/table.js', 'table.js', 'text/javascript'], ['/tips.js', 'tips.js', 'text/javascript'], ['/style.css', 'style.css', 'text/css'], ['/favicon.svg', 'favicon.svg', 'image/svg+xml']].map(([route, file, type]) => [route, { body: readFileSync(path.join(root, 'static', file)), type }]));
   async function handler(req, res) {
     const reply = (status, data, extra = {}) => {
       const body = Buffer.isBuffer(data) ? data : Buffer.from(JSON.stringify(data));

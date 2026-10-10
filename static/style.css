@@ -11,6 +11,9 @@ button,input,select{background:#162b42;color:var(--ink)}.brand-icon{background:#
 .poker-table:not(.draw-facts){height:410px}
 @media(max-width:480px){.poker-table:not(.draw-facts){height:390px}}
 
+.mental-tip{margin-top:12px;border-left:3px solid #3182f6}
+#steps,#mental-tip{white-space:pre-line;line-height:1.8}
+
 /* Always-reachable controls, with space to keep the explanation unobscured. */
 @media(max-width:600px){
   main{padding-bottom:calc(190px + env(safe-area-inset-bottom,0px))}

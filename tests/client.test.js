@@ -25,6 +25,7 @@ function client(fetch, saved, viewport) {
     localStorage: { getItem() { return stored; }, setItem(key, value) { stored = value; } },
   });
   vm.runInContext(readFileSync(new URL('../static/table.js', import.meta.url), 'utf8'), context);
+  vm.runInContext(readFileSync(new URL('../static/tips.js', import.meta.url), 'utf8'), context);
   vm.runInContext(source.replace(/run\(resume\);\s*$/, '') + `
     state = { skills: [{ id: 'chipsToBB', category: 'stacks' }], levels: ['Friendly numbers'] };
     globalThis.testControls = { flush, nextQuestion };
@@ -32,6 +33,20 @@ function client(fetch, saved, viewport) {
   return { ratings, controls: context.testControls, stored: () => JSON.parse(stored), elements, windowEvents, advance(ms) { now += ms; } };
 }
 const response = data => ({ ok: true, json: async () => data });
+
+test('answer calculations render on separate lines without splitting decimals', async () => {
+  const lines = [
+    'Matched total per player = £500.',
+    'Extra call = £400.',
+    'Final pot = £400 + 2 × £500 = £1,400.',
+    'Extra call ÷ final pot × 100 = 28.5714%.',
+    'Pot odds are 2.5:1 (pot available before your call : extra call).',
+  ];
+  const app = client(async () => response({ ok: true, next: { ...next, steps: lines.join(' ') } }));
+  await app.ratings[2].onclick();
+  app.elements.get('answer-form').submit({ preventDefault() {} });
+  assert.equal(app.elements.get('steps').textContent, lines.join('\n'));
+});
 
 test('large revealed answers use thousands separators even with an older saved label', async () => {
   const q = { ...next, answer: '100000', answerLabel: '100000 chips', unit: 'chips' };
@@ -84,10 +99,15 @@ test('real controller fills table labels and hides the table when the next quest
   assert.equal(app.elements.get('pot-amount').textContent, '20 BB');
   assert.equal(app.elements.get('villain-bet-amount').textContent, '75 BB total');
   assert.equal(app.elements.get('hero-stack').textContent, '90 BB behind');
+  assert.equal(app.elements.get('answer-panel').hidden, true);
   app.elements.get('answer-form').submit({ preventDefault() {} });
+  assert.equal(app.elements.get('answer-panel').hidden, false);
+  assert.equal(app.elements.get('mental-tip-panel').hidden, false);
+  assert.match(app.elements.get('mental-tip').textContent, /65 BB to call/);
   assert.equal(app.elements.get('answer-panel').scrolled.block, 'start');
   await app.ratings[2].onclick();
   assert.equal(app.elements.get('table-view').hidden, true);
+  assert.equal(app.elements.get('mental-tip-panel').hidden, true);
 });
 
 test('lost response keeps the queued answer across reload, then clears it only after acknowledgement', async () => {
