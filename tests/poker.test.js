@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { Readable } from 'node:stream';
-import { SKILLS, makeQuestion, raisedAllIn, DAY } from '../engine.js';
+import { SKILLS, makeQuestion, raisedAllIn, geometricFraction, DAY } from '../engine.js';
 import { createApp } from '../server.js';
 import { setPassword } from '../auth.js';
 import { openDatabase, recordReview, progressMeasurements } from '../db.js';
@@ -22,6 +22,66 @@ test('all-in odds subtract hero’s existing bet and exclude unmatched excess', 
   assert.throws(() => raisedAllIn(20, 10, 5));
 });
 
+test('geometric sizing exhausts the effective stack over both two and three streets', () => {
+  assert.equal(geometricFraction(20, 30, 2), 0.5);
+  assert.equal(geometricFraction(20, 70, 3), 0.5);
+  assert.equal(geometricFraction(20, 80, 2), 1);
+  assert.equal(geometricFraction(20, 260, 3), 1);
+  assert.throws(() => geometricFraction(20, 30, 1));
+  for (const game of ['cash', 'tournament']) for (let d = 0; d < 6; d++) {
+    const seen = new Set();
+    for (const r of [0, 0.49, 0.999]) {
+      const q = makeQuestion('geometricSizing', Math.floor(d / 2), () => r, d, game);
+      const s = q.scenario, fraction = geometricFraction(s.pot, s.effective, s.streets);
+      if (s.streets === 3) assert.ok(s.effective >= s.pot);
+      let pot = s.pot, remaining = s.effective;
+      for (let i = 0; i < s.streets; i++) {
+        const bet = fraction * pot;
+        assert.ok(bet <= remaining + 1e-6);
+        remaining -= bet; pot += 2 * bet;
+      }
+      assert.ok(Math.abs(remaining) < 1e-6);
+      assert.ok(Math.abs(pot - (s.pot + 2 * s.effective)) < 1e-6);
+      assert.equal(Number(q.answer), Math.round(fraction * 100));
+      assert.match(q.prompt, /SAME percentage of the CURRENT pot/);
+      assert.match(q.steps, /adjust the final shove/);
+      seen.add(s.streets);
+    }
+    assert.deepEqual([...seen].sort(), [2, 3]);
+  }
+});
+
+test('shallow geometric sizing scenarios use two streets instead of three', () => {
+  for (const game of ['cash', 'tournament']) for (const d of [4, 5]) {
+    // Select a low stack, a high pot and initially three streets.
+    const draws = [0, 0, 0.999, 0, 0.999];
+    const q = makeQuestion('geometricSizing', 2, () => draws.shift() ?? 0, d, game);
+    assert.ok(q.scenario.effective < q.scenario.pot);
+    assert.equal(q.scenario.streets, 2);
+    assert.deepEqual(q.scenario.streetNames, ['Turn', 'River']);
+    assert.match(q.prompt, /before any turn bets/);
+    assert.match(q.prompt, /2 streets left/);
+  }
+});
+
+test('raise-to totals include the hypothetical call and generated raises are legal', () => {
+  const draws = [0.5, 0, 0.5, 0.4];
+  const q = makeQuestion('raiseTo', 0, () => draws.shift() ?? 0, 0, 'cash');
+  assert.equal(q.scenario.pot, 100); assert.equal(q.scenario.bet, 50);
+  assert.equal(q.answer, '250');
+  assert.match(q.prompt, /TOTAL.*raise TO/);
+  for (const skill of ['raiseTo', 'amountToCall']) for (let d = 0; d < 6; d++) for (const game of ['cash', 'tournament']) {
+    for (const r of [0, 0.49, 0.999]) {
+      const q = makeQuestion(skill, Math.floor(d / 2), () => r, d, game);
+      if (skill === 'raiseTo') assert.ok(Number(q.answer) + 1e-6 >= 2 * q.scenario.bet);
+      else {
+        assert.ok(q.scenario.raiseTo >= 2 * q.scenario.bet);
+        assert.ok(Math.abs(Number(q.answer) + q.scenario.bet - q.scenario.raiseTo) < 1e-6);
+      }
+    }
+  }
+});
+
 test('all skills and difficulty steps yield correct answers in both game formats', () => {
   // Independent formulas from the raw scenario, before question rounding.
   const formulas = {
@@ -29,6 +89,9 @@ test('all skills and difficulty steps yield correct answers in both game formats
     effectiveStack: s => Math.min(s.hero, s.villain) / s.blind,
     spr: s => s.effective / s.pot, betPercent: s => s.bet / s.pot * 100,
     betSize: s => s.pot * s.percent / 100, potAfterCall: s => s.pot + 2 * s.bet,
+    raiseTo: s => s.bet + (s.pot + 2 * s.bet) * s.percent / 100,
+    amountToCall: s => s.raiseTo - s.bet,
+    geometricSizing: s => (Math.pow((s.pot + 2 * s.effective) / s.pot, 1 / s.streets) - 1) * 50,
     potOdds: s => s.bet / (s.pot + 2 * s.bet) * 100,
     allInOdds: s => (s.shove - s.bet) / (s.pot + 2 * s.shove) * 100,
     shortAllInOdds: s => (s.heroTotal - s.bet) / (s.pot + 2 * s.heroTotal) * 100,
@@ -132,7 +195,7 @@ test('authenticated API saves once, retries misses, filters formats and backs up
   assert.equal((await (await call('state')).json()).total, 1);
   await call('review', { id: saved.next.id, rating: 'comfortable', elapsedMs: 3000, answerMode: 'mental' });
   const state = await (await call('state')).json();
-  assert.equal(state.skills.length, 12); assert.equal(state.difficulties.length, 6);
+  assert.equal(state.skills.length, 15); assert.equal(state.difficulties.length, 6);
   assert.ok(state.bands.every(b => !b.skill.startsWith('draw')));
   assert.equal(state.due, state.bands.filter(b => b.due <= state.now).length);
   assert.equal(app.db.prepare("SELECT count(*) AS n FROM bands WHERE skill IN ('drawOne','drawTwo')").get().n, 2);

@@ -13,6 +13,28 @@ globalThis.PokerTable = {
       potLabel: 'Pot', potNote: 'Before these bets', action: '', question: '', note: '',
       blind: s.blind && !inBB ? `Big blind: ${amount(s.blind)}` : '', facts: false };
     switch (q.skill) {
+      case 'raiseTo':
+        view.villain = player('VILLAIN', 'Enough behind', amount(s.bet));
+        view.hero = player('YOU', 'Enough behind');
+        view.raiseTarget = `${s.percent}%-pot raise`;
+        view.action = `Villain bets ${amount(s.bet)}.`;
+        view.question = `What total should you raise TO for a ${s.percent}%-pot raise?`;
+        view.note = 'Heads-up · You have put nothing in this street · Use the pot after your hypothetical call · Ignore rake'; break;
+      case 'amountToCall':
+        view.hero = player('YOU', 'You cover', amount(s.bet));
+        view.villain = player('VILLAIN', '', `${amount(s.raiseTo)} total`);
+        view.action = `You bet ${amount(s.bet)} → Villain raises to ${amount(s.raiseTo)} total`;
+        view.question = 'How much MORE do you need to call?';
+        view.note = 'Subtract your existing contribution · The raise is TO this total, not BY this amount'; break;
+      case 'geometricSizing':
+        view.streetsRemaining = `${s.streets} streets remaining`;
+        view.streetNames = s.streetNames.join(' → ');
+        view.hero = player('YOU', `${amount(s.effective)} effective behind`);
+        view.villain = player('VILLAIN', `${amount(s.effective)} effective behind`);
+        view.potNote = `Before ${s.streets === 2 ? 'turn' : 'flop'} bets`;
+        view.action = `${s.streets} streets left: ${s.streetNames.join(' → ')}. You bet; villain calls on every street.`;
+        view.question = 'What SAME percentage of the current pot gets the effective stack in by the river?';
+        view.note = 'Heads-up · Equal percentages, not equal amounts · No raises or other action · Ignore rake'; break;
       case 'trackPot': {
         const index = Math.max(0, Math.min(trackingIndex, s.streets.length + 1));
         const street = s.streets[Math.min(index, s.streets.length) - 1];

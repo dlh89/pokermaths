@@ -18,11 +18,12 @@ The mental-maths app can keep running on port 8765. This app uses port 8766, its
 
 ## Practice
 
-Twelve skills:
+Fifteen skills:
 
 - Chips to BB; BB to chips; effective stack in BB; stack-to-pot ratio.
 - Bet as a percentage of the pot; percentage-pot bet sizing; pot after a bet and call.
 - Track the pot across streets, with action shown one street at a time.
+- Raise-to sizing; how much more to call; geometric bet sizing over two or three streets.
 - Calling equity threshold; your bet facing an all-in raise; an all-in raise when you are shorter; break-even pure-bluff success rate.
 
 Choose cash, tournaments or both; any category, individual skill or custom mix. Cash examples use pounds and realistic blind amounts. Tournament examples use chips. All-in raise examples also alternate with BB wording. Changing format keeps your skill progress; cash and tournament versions share the same underlying maths skill.
@@ -38,6 +39,10 @@ Progress shows first-attempt accuracy and median correct-answer time, separated 
 Answers also show a Mental shortcut tailored to the current numbers: cancelling zeros, splitting BB amounts, building percentages from halves/quarters or 10%/1%, and using percentage anchors for calling and bluffing odds. These tips appear only after reveal and also work for previously saved questions with scenario data.
 
 ## Meaning of the answers
+
+Raise-to sizing asks for your total street contribution after a raise, when you face a bet and have not yet contributed on this street. A percentage-pot raise uses the pot after your hypothetical call: total raise-to = villain’s bet + target fraction × (original pot + 2 × villain’s bet). A pot-sized raise simplifies to original pot + 3 × villain’s bet. “How much more to call?” subtracts your existing contribution from villain’s raise-to total.
+
+Geometric bet sizing mixes two streets (turn/river) and three streets (flop/turn/river). It asks for the same percentage of the current pot on every street, assuming heads-up bet-and-call action throughout, no raises and no rake. Effective stack means the amount behind per player before the first bet. With pot P, stack S and n streets, bet fraction = ((1 + 2S/P)^(1/n) − 1) / 2. Answers are whole percentages with the usual one-percentage-point tolerance. Worked answers show the more precise percentage and successive bets; displayed amounts are approximate and the last shove should be adjusted to the actual stack remaining. Mental tips give useful SPR anchors and a way to test a proposed percentage.
 
 “Track the pot across streets” is in Bet sizing & pots. Remember the starting pot, then use the bottom button to step through the flop, turn and (at higher levels) river. The running pot stays hidden; answer only after all action is complete. Early questions are heads-up with round amounts; later questions include a third player, checks, folds, raises and returned uncalled bets. There are no side pots or rake. The revealed answer gives a street-by-street ledger. Replay action restarts the sequence and marks the attempt as assisted: it is saved, returns sooner, and does not count towards independent accuracy, timing or promotion. Your place in the sequence and replay status survive refreshing the page. The new skill is added automatically on startup without changing existing progress.
 

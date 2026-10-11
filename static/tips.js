@@ -37,6 +37,12 @@ globalThis.PokerTips = {
       return `Use a nearby 5% anchor: ${anchor}% of ${amount(d)} is ${amount(anchorAmount)}. Each 1 percentage point is ${amount(d / 100)}.${Math.abs(difference) > 0.000001 ? ` The numerator is ${amount(Math.abs(difference))} ${difference > 0 ? 'higher' : 'lower'}, so ${difference > 0 ? 'add' : 'subtract'} about ${fmt(Math.abs(difference) / (d / 100))} percentage points.` : ' The numerator matches exactly.'} Round only at the end.`;
     }
     switch (q.skill) {
+      case 'raiseTo': return `Call first in your head: double villain’s bet and add the original pot. For a pot-sized raise, the shortcut is original pot + 3 × villain’s bet: ${amount(s.pot)} + 3 × ${amount(s.bet)} = ${amount(s.pot + 3 * s.bet)}. ${s.percent !== 100 ? `For this ${s.percent}%-pot raise, use ${s.percent}% of the pot after your call, then add the call amount. ${percentSize(s.pot + 2 * s.bet, s.percent)}` : ''} The answer is your total raise TO.`;
+      case 'amountToCall': return `Your first bet has already been paid. Find the gap from ${amount(s.bet)} up to ${amount(s.raiseTo)}. ${amount(s.raiseTo)} − ${amount(s.bet)} = ${amount(s.raiseTo - s.bet)} more. Check by adding that gap back to your original bet.`;
+      case 'geometricSizing': {
+        const spr = s.effective / s.pot;
+        return `Start with SPR: ${fmt(spr)}. Useful anchors: 50%-pot bets use SPR ${s.streets === 2 ? '1.5 over two streets' : '3.5 over three streets'}; 100%-pot bets use SPR ${s.streets === 2 ? '4 over two streets' : '13 over three streets'}. Compare your SPR to those anchors. To test a candidate percentage, start with the pot and stack; subtract each bet from your stack, then add twice that bet to the pot. Repeat ${s.streets} times. Chips left means the percentage is too small; running out early means it is too big. Three streets need a smaller percentage than two for the same SPR. Round only your final percentage.`;
+      }
       case 'trackPot': return 'Carry one total forward at the end of each street. Heads-up bet and call: add twice the bet. With two callers: add three times the bet. For a raise, count each player’s total on that street; do not count an earlier bet twice. Checks and folds add no new chips; previous contributions stay in the pot. Return any uncalled part before adding the street total.';
       case 'chipsToBB': return divide(s.stack, s.blind);
       case 'effectiveStack': return `Use only the smaller stack (${amount(Math.min(s.hero, s.villain))}). ${divide(Math.min(s.hero, s.villain), s.blind)}`;

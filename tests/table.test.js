@@ -26,3 +26,16 @@ test('all skill views use scenario inputs in both formats, and old questions fal
   }
   assert.equal(build({ skill: 'allInOdds' }), null);
 });
+
+test('new sizing views show inputs and targets without the calculated answer', () => {
+  const raise = build({ skill: 'raiseTo', game: 'cash', unit: '£', scenario: { pot: 100, bet: 50, percent: 100 } });
+  assert.equal(raise.pot, '£100'); assert.equal(raise.villain.bet, '£50');
+  assert.match(raise.question, /raise TO/); assert.ok(!JSON.stringify(raise).includes('£250'));
+  const call = build({ skill: 'amountToCall', game: 'tournament', unit: 'chips', scenario: { pot: 10000, bet: 8000, raiseTo: 23000 } });
+  assert.equal(call.hero.bet, '8,000 chips'); assert.equal(call.villain.bet, '23,000 chips total');
+  assert.ok(!JSON.stringify(call).includes('15,000'));
+  const geometric = build({ skill: 'geometricSizing', game: 'cash', unit: '%', scenario: { pot: 20, effective: 70, streets: 3, streetNames: ['Flop', 'Turn', 'River'] } });
+  assert.equal(geometric.hero.stack, '£70 effective behind');
+  assert.match(geometric.action, /3 streets/); assert.match(geometric.question, /SAME percentage/);
+  assert.ok(!JSON.stringify(geometric).includes('50%'));
+});

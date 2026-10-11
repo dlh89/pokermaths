@@ -11,6 +11,9 @@ export const SKILLS = {
   betSize: { name: 'Size a percentage-pot bet', category: 'sizing' },
   potAfterCall: { name: 'Pot after a bet and call', category: 'sizing' },
   trackPot: { name: 'Track the pot across streets', category: 'sizing' },
+  raiseTo: { name: 'Raise-to sizing', category: 'sizing' },
+  amountToCall: { name: 'How much more to call?', category: 'odds' },
+  geometricSizing: { name: 'Geometric bet sizing', category: 'sizing' },
   potOdds: { name: 'Equity needed to call', category: 'odds' },
   allInOdds: { name: 'Your bet faces an all-in raise', category: 'odds' },
   shortAllInOdds: { name: 'All-in raise when you are shorter', category: 'odds' },
@@ -36,6 +39,11 @@ export function raisedAllIn(pot, bet, shove, heroTotal = shove) {
   const matched = Math.min(shove, heroTotal), call = matched - bet;
   const finalPot = pot + 2 * matched, availablePot = finalPot - call;
   return { call, finalPot, availablePot, unmatched: shove - matched, equity: call / finalPot * 100, ratio: availablePot / call };
+}
+
+export function geometricFraction(pot, effective, streets) {
+  if (![pot, effective].every(n => Number.isFinite(n) && n > 0) || ![2, 3].includes(streets)) throw new Error('Invalid geometric sizing scenario');
+  return (Math.pow(1 + 2 * effective / pot, 1 / streets) - 1) / 2;
 }
 
 export function makeQuestion(skill, level, random = Math.random, difficulty = level * 2, game = 'both') {
@@ -85,6 +93,33 @@ export function makeQuestion(skill, level, random = Math.random, difficulty = le
   } else if (skill === 'potAfterCall') {
     numeric(`Pot BEFORE the bet: ${money(pot)}. Villain bets ${money(bet)} and you call ${money(bet)}. No other action. What is the new pot?`, round(pot + 2 * bet), context === 'cash' ? '£' : 'chips', 'Add both the bet and the call.', `${amount(pot)} + ${amount(bet)} + ${amount(bet)} = ${money(round(pot + 2 * bet))}.`);
     scenario = { pot, bet };
+  } else if (skill === 'raiseTo') {
+    const percent = difficulty === 0 ? 100 : difficulty === 1 ? pick([50, 100]) : pick([50, 75, 100, 125, 150, 200]);
+    const afterCall = pot + 2 * bet, increase = afterCall * percent / 100;
+    const total = round(bet + increase);
+    numeric(`Heads-up: pot BEFORE villain's bet is ${money(pot)}. Villain bets ${money(bet)}. You have put nothing in on this street and both players have enough behind. What TOTAL should you raise TO for a ${percent}%-pot raise? Calculate the raise portion using the pot after your hypothetical call. Ignore rake.`, total, context === 'cash' ? '£' : 'chips', 'Call first in your head; calculate the raise portion on that pot; add the call to give the raise-to total.', `Pot after a hypothetical call = ${money(pot)} + 2 × ${money(bet)} = ${money(afterCall)}. Raise portion = ${percent}% × ${money(afterCall)} = ${money(increase)} before rounding. Raise TO = call ${money(bet)} + raise portion ${money(increase)} = ${money(total)} after rounding. This is the total you put in, not an extra raise by that amount.`);
+    scenario = { pot, bet, percent };
+  } else if (skill === 'amountToCall') {
+    const raiseTo = difficulty < 2 ? round(bet * pick([2, 3, 4])) : round(2 * bet + (difficulty < 4 ? int(1, 20) : int(11, 199) / 10) * blind);
+    numeric(`Heads-up: pot BEFORE these bets was ${money(pot)}. You bet ${money(bet)}. Villain raises TO ${money(raiseTo)} total on this street. You cover the raise. How much MORE do you need to call?`, round(raiseTo - bet), context === 'cash' ? '£' : 'chips', 'Subtract the amount you already put in from villain’s total contribution.', `Extra call = ${money(raiseTo)} − ${money(bet)} = ${money(round(raiseTo - bet))}. Your existing bet is already in the pot; do not pay it twice.`);
+    scenario = { pot, bet, raiseTo };
+  } else if (skill === 'geometricSizing') {
+    let streets = pick([2, 3]);
+    const effective = difficulty < 4 ? round(pot * (Math.pow(1 + 2 * pick(difficulty === 0 ? [0.25, 0.5, 1] : difficulty === 1 ? [0.5, 0.75, 1] : [0.4, 0.5, 0.67, 0.75, 1, 1.1, 1.25]), streets) - 1) / 2) : stack;
+    // Shallow stacks are useful turn/river exercises, but not flop plans.
+    if (streets === 3 && effective < pot) streets = 2;
+    const names = streets === 2 ? ['Turn', 'River'] : ['Flop', 'Turn', 'River'];
+    const f = geometricFraction(pot, effective, streets), growth = 1 + 2 * f;
+    const ledger = [`SPR = ${money(effective)} ÷ ${money(pot)} = ${format(effective / pot)}. Final pot must be ${money(pot)} + 2 × ${money(effective)} = ${money(round(pot + 2 * effective))}. Required pot-growth factor over ${streets} streets = ${format(1 + 2 * effective / pot)}. ${streets === 2 ? 'Square' : 'Cube'} root gives growth per street = ${format(growth)}. Bet fraction = (growth − 1) ÷ 2 = ${format(f)} = ${format(f * 100)}%.`];
+    let currentPot = pot;
+    for (const name of names) {
+      const streetBet = currentPot * f;
+      currentPot += 2 * streetBet;
+      ledger.push(`${name}: bet ≈ ${money(round(streetBet))}; pot after a call ≈ ${money(round(currentPot))}.`);
+    }
+    ledger.push(`Each player contributes ${money(effective)} in total. The whole-percentage answer is an estimate; adjust the final shove to the actual stack remaining.`);
+    percentage(`Heads-up, before any ${names[0].toLowerCase()} bets: pot ${money(pot)}, effective stack ${money(effective)} BEHIND per player. There are ${streets} streets left (${names.join(' and ').toLowerCase()}). You bet and villain calls on each street, with no raises or other action. What SAME percentage of the CURRENT pot should you bet on every street to put the whole effective stack in by the river? Ignore rake.`, f * 100, 'Use equal percentage-of-pot bets, not equal money amounts. Each bet and call multiplies the pot by 1 + 2 × the bet fraction.', ledger.join('\n'));
+    scenario = { pot, effective, streets, streetNames: names };
   } else if (skill === 'trackPot') {
     const count = difficulty === 0 ? 1 : difficulty < 3 ? 2 : 3;
     const players = difficulty >= 3 ? ['YOU', 'VILLAIN', 'PLAYER 3'] : ['YOU', 'VILLAIN'];

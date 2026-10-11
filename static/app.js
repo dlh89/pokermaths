@@ -180,6 +180,11 @@ function renderTable(view, q) {
   $('table-view').hidden = !view; $('table-title').hidden = !view; $('text-scenario').hidden = !view;
   if (!view) return;
   $('table-title').textContent = q.label || 'Poker practice';
+  $('raise-target').hidden = !view.raiseTarget;
+  $('raise-target-size').textContent = view.raiseTarget || '';
+  $('streets-remaining').hidden = !view.streetsRemaining;
+  $('streets-remaining-count').textContent = view.streetsRemaining || '';
+  $('streets-remaining-names').textContent = view.streetNames || '';
   $('scenario-description').textContent = q.prompt;
   $('table-blind').textContent = view.blind; $('table-blind').hidden = !view.blind;
   $('poker-table').classList.toggle('draw-facts', view.facts);
